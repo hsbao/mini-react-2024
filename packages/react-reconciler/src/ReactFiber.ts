@@ -3,8 +3,8 @@ import { NoFlags } from './ReactFiberFlags'
 import { NoLanes } from './ReactFiberLane'
 import type { Fiber } from './ReactInternalTypes'
 import { isFn, isStr } from "shared/utils"
-import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostText, IndeterminateComponent, WorkTag } from './ReactWorkTags'
-import { REACT_CONTEXT_TYPE, REACT_FRAGMENT_TYPE, REACT_PROVIDER_TYPE } from 'shared/ReactSymbols'
+import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostText, IndeterminateComponent, MemoComponent, WorkTag } from './ReactWorkTags'
+import { REACT_CONTEXT_TYPE, REACT_FRAGMENT_TYPE, REACT_MEMO_TYPE, REACT_PROVIDER_TYPE } from 'shared/ReactSymbols'
 
 
 // 创建一个fiber
@@ -104,6 +104,8 @@ export function createFiberFromTypeAndProps(
     fiberTag = ContextProvider
   } else if (type.$$typeof === REACT_CONTEXT_TYPE) { // context consumer
     fiberTag = ContextConsumer
+  } else if (type.$$typeof === REACT_MEMO_TYPE) { // memo
+    fiberTag = MemoComponent
   }
   const fiber = createFiber(fiberTag, pendingProps, key)
   fiber.elementType = type
@@ -150,4 +152,22 @@ export function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
   workInProgress.index = current.index
 
   return workInProgress
+}
+
+function shouldConstruct(Component: Function) {
+  const prototype = Component.prototype
+  return !!(prototype && prototype.isReactComponent)
+}
+
+/**
+ * 判断是否是函数组件
+ * @param type 组件的类型
+ * @returns 
+ */
+export function isSimpleFunctionComponent(type: any): boolean {
+  return (
+    typeof type === "function" &&
+    !shouldConstruct(type) &&
+    type.defaultProps === undefined
+  )
 }

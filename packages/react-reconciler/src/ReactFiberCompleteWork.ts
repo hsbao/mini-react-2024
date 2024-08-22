@@ -1,6 +1,6 @@
 import { isNum, isStr } from 'shared/utils'
 import { Fiber } from './ReactInternalTypes'
-import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostRoot, HostText } from './ReactWorkTags'
+import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostRoot, HostText, MemoComponent, SimpleMemoComponent } from './ReactWorkTags'
 import { popProvider } from './ReactFiberNewContext'
 import { registrationNameDependencies } from 'react-dom-bindings/src/event/EventRegistry'
 import { precacheFiberNode, updateFiberProps } from 'react-dom-bindings/src/client/ReactDOMComponentTree'
@@ -17,6 +17,8 @@ export function completeWork(
     case ClassComponent:
     case Fragment:
     case ContextConsumer:
+    case MemoComponent:
+    case SimpleMemoComponent:
     case HostRoot: {
       return null
     }

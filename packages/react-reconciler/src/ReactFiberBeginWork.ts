@@ -1,9 +1,11 @@
 import { isNum, isStr } from 'shared/utils'
+import shallowEqual from 'shared/shallowEqual'
 import { mountChildFibers, reconcileChildFibers } from './ReactChildFiber'
 import { Fiber } from './ReactInternalTypes'
-import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostRoot, HostText } from './ReactWorkTags'
+import { ClassComponent, ContextConsumer, ContextProvider, Fragment, FunctionComponent, HostComponent, HostRoot, HostText, MemoComponent, SimpleMemoComponent } from './ReactWorkTags'
 import { renderWithHooks } from './ReactFiberHooks'
 import { pushProvider, readContext } from './ReactFiberNewContext'
+import { createFiberFromTypeAndProps, createWorkInProgress, isSimpleFunctionComponent } from './ReactFiber'
 
 function shouldSetTextContent(type: string, props: any): boolean {
   return (
@@ -40,6 +42,10 @@ export function beginWork(
       return updateContextProvider(current, workInProgress)
     case ContextConsumer:
       return updateContextConsumer(current, workInProgress)
+    case MemoComponent:
+      return updateMemoComponent(current, workInProgress)
+    case SimpleMemoComponent:
+      return updateSimpleMemoComponent(current, workInProgress)
   }
 
   throw new Error(
@@ -99,8 +105,8 @@ function updateHostFragment(current: Fiber | null, workInProgress: Fiber) {
 
 /**
  * class 组件
- * @param current 
- * @param workInProgress 
+ * @param current 老的fiber
+ * @param workInProgress 当前组件新的fiber
  */
 function updateClassComponent(current: Fiber | null, workInProgress: Fiber) {
   const { type, pendingProps } = workInProgress
@@ -122,8 +128,8 @@ function updateClassComponent(current: Fiber | null, workInProgress: Fiber) {
 
 /**
  * 函数组件
- * @param current 
- * @param workInProgress 
+ * @param current  老的fiber
+ * @param workInProgress 当前组件新的fiber 
  * @returns 
  */
 function updateFunctionComponent(current: Fiber | null, workInProgress: Fiber) {
@@ -184,6 +190,72 @@ function updateContextConsumer(current: Fiber | null, workInProgress: Fiber) {
 
   reconcileChildren(current, workInProgress, newChildren)
   return workInProgress.child
+}
+
+/**
+ * memo
+ * @param current  老的fiber
+ * @param workInProgress 当前组件新的fiber 
+ * @returns 
+ */
+function updateMemoComponent(current: Fiber | null, workInProgress: Fiber) {
+  /**
+   * const elementType = {
+   *   $$typeof: REACT_MEMO_TYPE,
+   *   type,
+   *   compare: compare === undefined ? null : compare,
+   * }
+   */
+  const Component = workInProgress.type // type是传给memo的组件
+  const type = Component.type // 这个type是组件对应的类型，用于区分是类组件还是函数组件
+
+  if (current === null) {
+    // ! 1.1 初次渲染，直接渲染组件
+    if (
+      isSimpleFunctionComponent(type) &&
+      Component.compare === null &&
+      Component.defaultProps === undefined
+    ) {
+      // 函数组件
+      workInProgress.type = type
+      workInProgress.tag = SimpleMemoComponent
+      return updateSimpleMemoComponent(current, workInProgress)
+    }
+    // ! 1.2 其他组件（类组件， forwardRef组件）
+    // 创建新的fiber
+    const child = createFiberFromTypeAndProps(type, null, workInProgress.pendingProps)
+    child.return = workInProgress
+    workInProgress.child = child
+    return child
+  }
+
+  // !2. current有值，说明是组件更新，需要调用compare函数对比新旧props
+  let compare = Component.compare
+  compare = compare !== null ? compare : shallowEqual
+  if (compare(current.memoizedProps, workInProgress.pendingProps)) {
+    return bailoutOnAlreadyFinishedWork()
+  }
+  const newChild = createWorkInProgress(
+    current.child as Fiber,
+    workInProgress.pendingProps
+  )
+  newChild.return = workInProgress
+  workInProgress.child = newChild
+  return newChild
+}
+
+function bailoutOnAlreadyFinishedWork() {
+  return null
+}
+
+function updateSimpleMemoComponent(current: Fiber | null, workInProgress: Fiber) {
+  if (current !== null) {
+    // 组件更新时，对比新旧props，如果没变化，直接退出渲染当前组件
+    if (shallowEqual(current.memoizedProps, workInProgress.pendingProps)) {
+      return bailoutOnAlreadyFinishedWork()
+    }
+  }
+  return updateFunctionComponent(current, workInProgress)
 }
 
 /**

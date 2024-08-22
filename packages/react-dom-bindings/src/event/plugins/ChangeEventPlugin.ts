@@ -44,7 +44,7 @@ function extractEvents(
   const targetNode = targetInst ? targetInst.stateNode : null
   if (isTextInputElement(targetNode)) {
     if (domEventName === 'input' || domEventName === 'change') {
-      // 判断值是否发生变化，如果没变化，则不触发onChange事件，解决了blur时onChange事件触发两次的问题
+      // 判断值是否发生变化，如果没变化，则不触发onChange事件，解决了blur也触发了onChange事件的问题
       const inst = getInstIfValueChanged(targetInst as Fiber, targetNode)
       if (!inst) {
         return

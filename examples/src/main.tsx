@@ -1,4 +1,4 @@
-import { ReactDOM, Fragment, Component, useReducer, useState, useMemo, useRef, useLayoutEffect, useEffect, createContext, useContext } from './which-react'
+import { ReactDOM, Fragment, Component, useReducer, useState, useMemo, useRef, useLayoutEffect, useEffect, createContext, useContext, memo } from './which-react'
 // import App from './App.tsx'
 
 const fragment1 = (
@@ -29,8 +29,6 @@ const Child = () => {
   // ! 3. 后代组件消费value，寻找最近且是匹配的Provider组件的value
   const count = useContext(CountContext)
 
-
-
   return (
     <div>
       <div>child 组件</div>
@@ -50,6 +48,22 @@ const Child = () => {
     </div>
   )
 }
+
+const Child2 = ({ count }) => {
+  useEffect(() => {
+    console.log('memo child useEffect')
+  })
+  return (
+    <div>
+      <div>child2 组件</div>
+      <div>{count}</div>
+    </div>
+  )
+}
+
+const MemoChild2 = memo<{ count: number }>(Child2, (prevProps, nextProps) => {
+  return prevProps.count === nextProps.count
+})
 
 const FunctionComponent = () => {
   // const ref = useRef(0)
@@ -116,12 +130,15 @@ const FunctionComponent = () => {
       <div onClick={handleClick}>
         {count2}
       </div>
-      <CountContext.Provider value={count2}>
+
+      <div>测试memo</div>
+      <MemoChild2 count={count2} />
+      {/* <CountContext.Provider value={count2}>
         <CountContext.Provider value={count2 + 1}>
           <Child />
         </CountContext.Provider>
         <Child />
-      </CountContext.Provider>
+      </CountContext.Provider> */}
       {/* <ul>
         {arr.map((item) => <li key={item}>{item}</li>)}
       </ul> */}

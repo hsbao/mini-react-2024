@@ -126,11 +126,20 @@ function addTrappedEventListener(
     eventSystemFlags
   )
 
+  let isPassiveListener: boolean = false // 解决页面滚动Passive控制台警告
+  if (
+    domEventName === 'touchstart' ||
+    domEventName === 'touchmove' ||
+    domEventName === 'wheel'
+  ) {
+    isPassiveListener = true
+  }
+
   // ! 2. 绑定事件
   if (isCapturePhaseListener) {
-    addEventCaptureListener(targetContainer, domEventName, listener)
+    addEventCaptureListener(targetContainer, domEventName, listener, isPassiveListener)
   } else {
-    addEventBubbleListener(targetContainer, domEventName, listener)
+    addEventBubbleListener(targetContainer, domEventName, listener, isPassiveListener)
   }
 }
 
@@ -179,16 +188,19 @@ export function extractEvents(
     targetContainer
   )
 
-  // todo change事件
-  ChangeEventPlugin.extractEvents(
-    dispatchQueue,
-    domEventName,
-    targetInst,
-    nativeEvent,
-    nativeEventTarget,
-    eventSystemFlags,
-    targetContainer
-  )
+  // 如果这样直接调用，在input输入的时候，会触发两次onChange事件，所以要加上判断
+  // 这个判断意思是不是捕获阶段才触发
+  if ((eventSystemFlags & SHOULD_NOT_PROCESS_POLYFILL_EVENT_PLUGINS) === 0) {
+    ChangeEventPlugin.extractEvents(
+      dispatchQueue,
+      domEventName,
+      targetInst,
+      nativeEvent,
+      nativeEventTarget,
+      eventSystemFlags,
+      targetContainer
+    )
+  }
 }
 
 /**
