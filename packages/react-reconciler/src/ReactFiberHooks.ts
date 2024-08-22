@@ -1,5 +1,6 @@
 import { isFn } from "shared/utils"
 import {
+  requestDeferredLane,
   scheduleUpdateOnFiber,
 } from "./ReactFiberWorkLoop"
 import type { Fiber, FiberRoot } from "./ReactInternalTypes"
@@ -8,11 +9,15 @@ import { Flags, Passive, Update } from "./ReactFiberFlags"
 import { HookFlags, HookLayout, HookPassive } from "./ReactHookEffectTags"
 
 import { ReactContext } from "shared/ReactTypes"
+import { includesOnlyNonUrgentLanes, Lanes, mergeLanes, NoLanes } from "./ReactFiberLane"
 
 type Hook = {
   memoizedState: any
   next: null | Hook
 }
+
+// These are set right before calling the component.
+let renderLanes: Lanes = NoLanes
 
 let currentlyRenderingFiber: Fiber | null = null // 当前正在工作的函数组件的fiber
 let workInProgressHook: Hook | null = null
@@ -30,7 +35,10 @@ export function renderWithHooks<Props>(
   workInProgress: Fiber,
   Component: any,
   props: Props,
+  nextRenderLanes: Lanes
 ): any {
+  renderLanes = nextRenderLanes
+
   currentlyRenderingFiber = workInProgress
   workInProgress.memoizedState = null
   workInProgress.updateQueue = null
@@ -308,4 +316,47 @@ function pushEffect(hookFlags: HookFlags, create: () => (() => void) | void, dep
 
 export function useContext(context: any) {
   return context._currentValue
+}
+
+/**
+ * useDeferredValue 是一个 React Hook，可以让你延迟更新 Ul 的某些部分
+ * @param value 要延迟更新的值
+ */
+export function useDeferredValue<T>(value: T): T {
+  const hook = updateWorkInProgressHook()
+
+  const prevValue: T = hook.memoizedState
+
+  // currentHook有值说明是更新阶段
+  if (currentHook !== null) {
+    // 如果当前值和上一次的值相等，则直接返回
+    if (Object.is(value, prevValue)) {
+      return value
+    } else {
+      // 当前值和上一次的值不相等时，判断是否需要延迟更新
+      const shouldDeferValue = !includesOnlyNonUrgentLanes(renderLanes)
+      if (shouldDeferValue) {
+        // 这是一个紧急更新。由于数值已更改，可以继续使用先前的数值，并生成一个延迟渲染以稍后更新它。
+        // 调度一个延迟更新，以在稍后更新此值。
+        const deferredLane = requestDeferredLane()
+        currentlyRenderingFiber!.lanes = mergeLanes(
+          currentlyRenderingFiber!.lanes, // 0
+          deferredLane // 128
+        )
+
+        // 复用先前的数值。我们不需要将其标记一个update，因为我们没有渲染新值。
+        return prevValue
+      } else {
+        // 非紧急更新
+        // 这不是一个紧急更新，所以我们可以使用最新的数值，而不必拖延。
+        // 将其标记为一个update，以防止fiber bailout
+        hook.memoizedState = value
+        return value
+      }
+    }
+  }
+
+  hook.memoizedState = value // 将新的值保存到 hook.memoizedState 中
+
+  return value
 }

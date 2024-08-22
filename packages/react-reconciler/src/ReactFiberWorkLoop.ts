@@ -6,6 +6,9 @@ import { NormalPriority } from "scheduler/src/SchedulerPriorities"
 import { completeWork } from './ReactFiberCompleteWork'
 import { ensureRootIsScheduled } from './ReactFiberRootScheduler'
 import type { Fiber, FiberRoot } from './ReactInternalTypes'
+import { claimNextTransitionLane, Lane, NoLane } from './ReactFiberLane'
+import { getCurrentUpdatePriority } from './ReactEventPriorities'
+import { getCurrentEventPriority } from 'react-dom-bindings/src/client/ReactFiberConfigDOM'
 
 type ExecutionContext = number
 
@@ -172,3 +175,26 @@ function commitRoot(root: FiberRoot) {
   workInProgressRoot = null
 }
 
+/**
+ * 获取紧急更新的lane
+ */
+export function requestUpdateLane(): Lane {
+  const updateLane: Lane = getCurrentUpdatePriority() // 获取当前更新优先级
+  if (updateLane !== NoLane) {
+    return updateLane
+  }
+  const eventLane: Lane = getCurrentEventPriority()
+  return eventLane
+}
+
+let workInProgressDeferredLane: Lane = NoLane // 非紧急更新的lane
+
+/**
+ * 获取非紧急更新的lane
+ */
+export function requestDeferredLane(): Lane {
+  if (workInProgressDeferredLane === NoLane) {
+    workInProgressDeferredLane = claimNextTransitionLane()
+  }
+  return workInProgressDeferredLane
+}
